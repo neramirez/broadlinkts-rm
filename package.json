@@ -1,14 +1,15 @@
 {
-  "name": "kiwicam-broadlinkjs-rm",
+  "name": "neramirez-broadlink-ts-rm",
   "version": "0.9.19",
   "description": "A Node.JS fork of broadlinkjs specifically intended for interacting with RM devices in homebridge-broadlink-rm",
   "main": "index.js",
   "scripts": {
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kiwi-cam/broadlinkjs-rm.git"
+    "url": "git+https://github.com/neramirez/broadlinkts-rm.git"
   },
   "keywords": [
     "Broadlink",
@@ -21,5 +22,14 @@
   "bugs": {
     "url": "https://github.com/kiwi-cam/broadlinkjs-rm/issues"
   },
-  "homepage": "https://github.com/kiwi-cam/broadlinkjs-rm#readme"
+  "homepage": "https://github.com/kiwi-cam/broadlinkjs-rm#readme",
+  "devDependencies": {
+    "@types/node": "^20.11.17",
+    "prettier": "^3.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "winston": "^3.11.0"
+  }
 }
