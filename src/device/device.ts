@@ -5,6 +5,7 @@ import EventEmitter from "events";
 import { rm4DeviceTypes, rm4PlusDeviceTypes, rmDeviceTypes, rmPlusDeviceTypes } from "../device.types";
 import dgram from "dgram";
 import crypto from "crypto";
+import { payloadHandlers } from "../types/payload.handler";
 
 export class Device extends EventEmitter {
   protected request_header: Buffer;
@@ -27,6 +28,7 @@ export class Device extends EventEmitter {
     super();
     this.logger = logger;
 
+    this.logger.info(`${host.address} ${host.port} Device: ${macAddress.toString("hex")} - ${deviceType.toString(16)}`);
     this.host = host;
     this.macAddress = macAddress;
     this.deviceType = deviceType;
@@ -99,7 +101,7 @@ export class Device extends EventEmitter {
         const indexOfHeader = payloadHex.indexOf(requestHeaderHex);
 
         if (indexOfHeader > -1) {
-          payload = payload.slice(indexOfHeader + this.request_header.length, payload.length);
+          payload = payload.subarray(indexOfHeader + this.request_header.length, payload.length);
         }
         this.onPayloadReceived(err, payload);
       } else if (command == 0x72) {
@@ -204,7 +206,9 @@ export class Device extends EventEmitter {
     packet[0x21] = checksum >> 8;
 
     socket.send(packet, 0, packet.length, this.host.port, this.host.address, (err, _bytes) => {
-      this.logger.debug("send packet error", err);
+      if (err) {
+        this.logger.debug("send packet error", err);
+      }
     });
   };
 
@@ -214,62 +218,10 @@ export class Device extends EventEmitter {
 
     this.logger.debug(`(${this.macAddress.toString("hex")}) Payload received:${payload.toString("hex")}`);
 
-    switch (param) {
-      case 0x1: { //RM3 Check temperature
-        const temp = (payload[0x4] * 10 + payload[0x5]) / 10.0;
-        this.emit("temperature", temp);
-        break;
-      }
-      case 0x4: { //get from check_data
-        const data = Buffer.alloc(payload.length - 4, 0);
-        payload.copy(data, 0, 4);
-        this.emit("rawData", data);
-        break;
-      }
-      case 0x9: { // Check RF Frequency found from RM4 Pro
-        const data = Buffer.alloc(1, 0);
-        payload.copy(data, 0, 0x6);
-        if (data[0] !== 0x1) break;
-        this.emit("rawRFData", data);
-        break;
-      }
-      case 0xa9:
-      case 0xb0:
-      case 0xb1:
-      case 0xb2: { //RF Code returned
-        this.emit("rawData", payload);
-        break;
-      }
-      case 0xa: { //RM3 Check temperature and humidity
-        const temp = (payload[0x6] * 100 + payload[0x7]) / 100.0;
-        const humidity = (payload[0x8] * 100 + payload[0x9]) / 100.0;
-        this.emit("temperature", temp, humidity);
-        break;
-      }
-      case 0x1a: { //get from check_data
-        const data = Buffer.alloc(1, 0);
-        payload.copy(data, 0, 0x4);
-        if (data[0] !== 0x1) break;
-        this.emit("rawRFData", data);
-        break;
-      }
-      case 0x1b: { // Check RF Frequency found from RM Pro
-        const data = Buffer.alloc(1, 0);
-        payload.copy(data, 0, 0x4);
-        if (data[0] !== 0x1 && !this.rm4Type) break; //Check if Fequency identified
-        this.emit("rawRFData2", data);
-        break;
-      }
-      case 0x26: { //get IR code from check_data
-        this.emit("rawData", payload);
-        break;
-      }
-      case 0x5e: { //get data from learning
-        const data = Buffer.alloc(payload.length - 4, 0);
-        payload.copy(data, 0, 6);
-        this.emit("rawData", data);
-        break;
-      }
+    const PayloadHandlerClass = payloadHandlers[param];
+    if (PayloadHandlerClass) {
+      const handlerInstance = new PayloadHandlerClass(this.rm4Type);
+      handlerInstance.handle(payload);
     }
   };
 
@@ -306,7 +258,7 @@ export class Device extends EventEmitter {
   };
 
   cancelLearn = () => {
-    let packet = new Buffer([0x1e]);
+    let packet = Buffer.from([0x1e]);
     packet = Buffer.concat([this.request_header, packet]);
     this.sendPacket(0x6a, packet);
   };

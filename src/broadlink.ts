@@ -16,9 +16,9 @@ import { RFDevice } from "./device/rfdevice";
 import { Device } from "./device/device";
 
 export class Broadlink extends EventEmitter {
+  public devices: NodeJS.Dict<Device>;
   private sockets: dgram.Socket[];
   private logger: Logger;
-  private devices: NodeJS.Dict<Device>;
 
   constructor() {
     super();
@@ -45,8 +45,10 @@ export class Broadlink extends EventEmitter {
 
       socket.on("listening", this.onListening.bind(this, socket, ipAddress));
       socket.on("message", this.onMessage.bind(this));
-
-      socket.bind(0, ipAddress);
+      socket.on("error", (err) => {
+        this.logger.error(`Error in UDP socket: ${err}`);
+      });
+      const a = socket.bind(0, ipAddress);
     });
   };
 
@@ -71,6 +73,7 @@ export class Broadlink extends EventEmitter {
 
   onListening = (socket: Socket, ipAddress: string) => {
     // Broadcase a multicast UDP message to let Broadlink devices know we're listening
+    this.logger.info(`Listening for Broadlink devices on ${ipAddress} (UDP)`);
     socket.setBroadcast(true);
 
     const splitIPAddress = ipAddress.split(".");
