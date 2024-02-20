@@ -5,22 +5,24 @@ import { rm4DeviceTypes, rm4PlusDeviceTypes, rmDeviceTypes, rmPlusDeviceTypes } 
 import dgram from "dgram";
 import crypto from "crypto";
 import { payloadHandlers } from "../types/payload.handler";
+import { PacketHandler } from "../packet.handler";
 
 export class Device {
   protected request_header: Buffer;
+  protected macAddress: Buffer;
+  protected deviceType: number;
+  protected requestCounter: number;
+  protected id: Buffer;
+  protected packetHandler: PacketHandler;
   private logger: winston.Logger;
   private host: Host;
-  private macAddress: Buffer;
-  private deviceType: number;
   private port: number | undefined;
   private model: string;
   private rm4Type: string;
   private code_sending_header: Buffer;
-  private requestCounter: number;
   private key: Buffer;
   private iv: Buffer;
   private socket: dgram.Socket;
-  private id: Buffer;
   private isSending: boolean;
   private readonly promises: {
     [key: number]: {
@@ -62,6 +64,7 @@ export class Device {
     this.socket.on("message", this.handleMessage.bind(this));
 
 
+    this.packetHandler = new PacketHandler(this.logger);
   }
 
   deviceReady = (message: Buffer) => {
@@ -94,8 +97,8 @@ export class Device {
 
     const command = response[0x26];
     if (command == 0xe9) {
-      this.key = Buffer.alloc(0x10, 0);
-      payload.copy(this.key, 0, 0x04, 0x14);
+      this.packetHandler.updateKey(Buffer.alloc(0x10, 0));
+      payload.copy(this.packetHandler.getKey(), 0, 0x04, 0x14);
 
       const id = Buffer.alloc(0x04, 0);
       payload.copy(id, 0, 0x00, 0x04);
@@ -164,78 +167,19 @@ export class Device {
     payload[0x35] = " ".charCodeAt(0);
     payload[0x36] = "1".charCodeAt(0);
 
-    return this.sendPacket(0x65, payload);
+//    return this.sendPacket(, payload);
+    const packet = this.packetHandler.createPacket(0x65, payload, this.macAddress, this.id, this.requestCounter, this.deviceType);
+    return this.sendPacket(0x65, packet, this.requestCounter);
   };
 
-  sendPacket = async (command: number, payload: Buffer) => {
+  sendPacket = async (command: number, packet: Buffer, requestId: number) => {
     return await new Promise<Buffer>((resolve: (value: Buffer) => void, reject: (reason: any) => void) => {
-      this.requestCounter = (this.requestCounter + 1) & 0xffff;
-      const requestId = this.requestCounter;
-
-      let packet = Buffer.alloc(0x38, 0);
-
-      packet[0x00] = 0x5a;
-      packet[0x01] = 0xa5;
-      packet[0x02] = 0xaa;
-      packet[0x03] = 0x55;
-      packet[0x04] = 0x5a;
-      packet[0x05] = 0xa5;
-      packet[0x06] = 0xaa;
-      packet[0x07] = 0x55;
-      packet[0x24] = this.deviceType & 0xff;
-      packet[0x25] = this.deviceType >> 8;
-      packet[0x26] = command;
-      packet[0x28] = requestId & 0xff;
-      packet[0x29] = requestId >> 8;
-      packet[0x2a] = this.macAddress[5];
-      packet[0x2b] = this.macAddress[4];
-      packet[0x2c] = this.macAddress[3];
-      packet[0x2d] = this.macAddress[2];
-      packet[0x2e] = this.macAddress[1];
-      packet[0x2f] = this.macAddress[0];
-      packet[0x30] = this.id[0];
-      packet[0x31] = this.id[1];
-      packet[0x32] = this.id[2];
-      packet[0x33] = this.id[3];
-      this.logger.info(`(${this.macAddress.toString("hex")}) Packet ${this.requestCounter} with ${this.id.toString("hex")} and command:${command.toString(16)}, count:${this.requestCounter.toString(16)}, and type:${this.deviceType.toString(16)} and id:${this.id.toString("hex")}`);
-
-      if (payload) {
-        this.logger.debug(`(${this.macAddress.toString("hex")}) Sending command:0x${command.toString(16)} with payload: ${payload.toString("hex")}`);
-        const padPayload = Buffer.alloc(16 - payload.length % 16, 0);
-        payload = Buffer.concat([payload, padPayload]);
-      }
-
-      let checksum = 0xbeaf;
-      for (let i = 0; i < payload.length; i++) {
-        checksum += payload[i];
-      }
-      checksum = checksum & 0xffff;
-
-      packet[0x34] = checksum & 0xff;
-      packet[0x35] = checksum >> 8;
-      this.logger.debug(`\x1b[33m[DEBUG]\x1b[0m (${this.macAddress.toString("hex")}) Packet :${packet.toString("hex")}`);
-
-      const cipher = crypto.createCipheriv("aes-128-cbc", this.key, this.iv);
-      payload = cipher.update(payload);
-      this.logger.debug(`\x1b[33m[DEBUG]\x1b[0m (${this.macAddress.toString("hex")}) Payload+cipher:${payload.toString("hex")}`);
-
-      packet = Buffer.concat([packet, payload]);
-      this.logger.debug(`\x1b[33m[DEBUG]\x1b[0m (${this.macAddress.toString("hex")}) Payload+cipher+payload:${packet.toString("hex")}`);
-
-      checksum = 0xbeaf;
-      for (let i = 0; i < packet.length; i++) {
-        checksum += packet[i];
-      }
-      checksum = checksum & 0xffff;
-      packet[0x20] = checksum & 0xff;
-      packet[0x21] = checksum >> 8;
-      this.logger.debug(`\x1b[33m[DEBUG]\x1b[0m (${this.macAddress.toString("hex")}) Packet final:${packet.toString("hex")}`);
-
       const timeout = setTimeout(() => {
         reject(new Error(`Timeout: handleMessage for ${requestId} was not called within the specified time.`));
         delete this.promises[this.requestCounter]; // remove the promise as it's no longer needed
       }, 5000); // 5000 milliseconds = 5 seconds
       this.promises[this.requestCounter] = { resolve, reject, timeout };
+      this.requestCounter = requestId + 1;
 
       this.socket.send(packet, 0, packet.length, this.host.port, this.host.address, (err, _bytes) => {
         if (err) {
@@ -243,7 +187,7 @@ export class Device {
         } else {
           this.logger.debug(`Packet sent to ${this.host.address}:${this.host.port} with command 0x${command.toString(16)}`);
           this.logger.debug(`MAC Address: ${this.macAddress.toString("hex")}`);
-          this.logger.debug(`Payload: ${payload.toString("hex")}`);
+          this.logger.debug(`Payload: ${packet.toString("hex")}`);
         }
       });
     });
@@ -266,37 +210,45 @@ export class Device {
   checkData = () => {
     let packet = Buffer.from([0x04]);
     packet = Buffer.concat([this.request_header, packet]);
-    this.sendPacket(0x6a, packet);
+    const packetToSend = this.packetHandler.createPacket(0x6a, packet, this.macAddress, this.id, this.requestCounter, this.deviceType);
+    return this.sendPacket(0x65, packetToSend, this.requestCounter);
   };
 
   sendData = (data: Buffer): Promise<Buffer> => {
     let packet = Buffer.from([0x02, 0x00, 0x00, 0x00]);
     packet = Buffer.concat([this.code_sending_header, packet, data]);
-    return this.sendPacket(0x6a, packet);
+    const packetToSend = this.packetHandler.createPacket(0x6a, packet, this.macAddress, this.id, this.requestCounter, this.deviceType);
+    return this.sendPacket(0x6a, packetToSend, this.requestCounter);
+
   };
 
   enterLearning = () => {
     let packet = Buffer.from([0x03]);
     packet = Buffer.concat([this.request_header, packet]);
-    this.sendPacket(0x6a, packet);
+    const packetToSend = this.packetHandler.createPacket(0x6a, packet, this.macAddress, this.id, this.requestCounter, this.deviceType);
+    return this.sendPacket(0x6a, packetToSend, this.requestCounter);
+
   };
 
   checkTemperature = () => {
     let packet = (rm4DeviceTypes[(this.deviceType)] || rm4PlusDeviceTypes[(this.deviceType)]) ? Buffer.from([0x24]) : Buffer.from([0x1]);
     packet = Buffer.concat([this.request_header, packet]);
-    this.sendPacket(0x6a, packet);
+    const packetToSend = this.packetHandler.createPacket(0x6a, packet, this.macAddress, this.id, this.requestCounter, this.deviceType);
+    return this.sendPacket(0x6a, packetToSend, this.requestCounter);
   };
 
   checkHumidity = () => {
     let packet = (rm4DeviceTypes[(this.deviceType)] || rm4PlusDeviceTypes[(this.deviceType)]) ? Buffer.from([0x24]) : Buffer.from([0x1]);
     packet = Buffer.concat([this.request_header, packet]);
-    this.sendPacket(0x6a, packet);
+    const packetToSend = this.packetHandler.createPacket(0x6a, packet, this.macAddress, this.id, this.requestCounter, this.deviceType);
+    return this.sendPacket(0x6a, packetToSend, this.requestCounter);
   };
 
   cancelLearn = () => {
     let packet = Buffer.from([0x1e]);
     packet = Buffer.concat([this.request_header, packet]);
-    this.sendPacket(0x6a, packet);
+    const packetToSend = this.packetHandler.createPacket(0x6a, packet, this.macAddress, this.id, this.requestCounter, this.deviceType);
+    return this.sendPacket(0x6a, packetToSend, this.requestCounter);
   };
 
   enqueue(command: Buffer) {
