@@ -4,15 +4,17 @@ import winston from "winston";
 export class PacketHandler {
   private key: Buffer;
   private iv: Buffer;
+  private id: Buffer;
   private logger: winston.Logger;
 
   constructor(logger: winston.Logger) {
     this.key = Buffer.from([0x09, 0x76, 0x28, 0x34, 0x3f, 0xe9, 0x9e, 0x23, 0x76, 0x5c, 0x15, 0x13, 0xac, 0xcf, 0x8b, 0x02]);
     this.iv = Buffer.from([0x56, 0x2e, 0x17, 0x99, 0x6d, 0x09, 0x3d, 0x28, 0xdd, 0xb3, 0xba, 0x69, 0x5a, 0x2e, 0x6f, 0x58]);
+    this.id = Buffer.from([0, 0, 0, 0]);
     this.logger = logger;
   }
 
-  public createPacket = (command: number, payload: Buffer, macAddress: Buffer, id: Buffer, requestCounter: number, deviceType: number): Buffer => {
+  public createPacket = (command: number, payload: Buffer, macAddress: Buffer, requestCounter: number, deviceType: number): Buffer => {
     requestCounter = requestCounter & 0xffff;
     const requestId = requestCounter;
 
@@ -37,11 +39,11 @@ export class PacketHandler {
     packet[0x2d] = macAddress[2];
     packet[0x2e] = macAddress[1];
     packet[0x2f] = macAddress[0];
-    packet[0x30] = id[0];
-    packet[0x31] = id[1];
-    packet[0x32] = id[2];
-    packet[0x33] = id[3];
-    this.logger.info(`(${macAddress.toString("hex")}) Packet ${requestCounter} with ${id.toString("hex")} and command:${command.toString(16)}, count:${requestCounter.toString(16)}, and type:${deviceType.toString(16)} and id:${id.toString("hex")}`);
+    packet[0x30] = this.id[0];
+    packet[0x31] = this.id[1];
+    packet[0x32] = this.id[2];
+    packet[0x33] = this.id[3];
+    this.logger.info(`(${macAddress.toString("hex")}) Packet ${requestCounter} with ${this.id.toString("hex")} and command:${command.toString(16)}, count:${requestCounter.toString(16)}, and type:${deviceType.toString(16)}`);
 
     if (payload) {
       this.logger.debug(`(${macAddress.toString("hex")}) Sending command:0x${command.toString(16)} with payload: ${payload.toString("hex")}`);
@@ -82,5 +84,17 @@ export class PacketHandler {
   };
   public getKey = () => {
     return this.key;
+  };
+
+  public setId = (id: Buffer) => {
+    this.id = id;
+  };
+
+  public getId = () => {
+    return this.id;
+  };
+
+  public getIv = () => {
+    return this.iv;
   };
 }
