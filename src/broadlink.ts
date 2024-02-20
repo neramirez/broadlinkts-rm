@@ -28,7 +28,7 @@ export class Broadlink extends EventEmitter {
     this.logger = logger;
   }
 
-  discover = () => {
+  discover = async (): Promise<NodeJS.Dict<Device>> => {
     // Close existing sockets
     this.sockets.forEach((socket) => {
       socket.close();
@@ -48,7 +48,13 @@ export class Broadlink extends EventEmitter {
       socket.on("error", (err) => {
         this.logger.error(`Error in UDP socket: ${err}`);
       });
-      const a = socket.bind(0, ipAddress);
+      socket.bind(0, ipAddress);
+    });
+
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve(this.devices);
+      }, 10000);
     });
   };
 
@@ -72,8 +78,7 @@ export class Broadlink extends EventEmitter {
   };
 
   onListening = (socket: Socket, ipAddress: string) => {
-    // Broadcase a multicast UDP message to let Broadlink devices know we're listening
-    this.logger.info(`Listening for Broadlink devices on ${ipAddress} (UDP)`);
+    // Broadcast a multicast UDP message to let Broadlink devices know we're listening
     socket.setBroadcast(true);
 
     const splitIPAddress = ipAddress.split(".");
@@ -132,6 +137,7 @@ export class Broadlink extends EventEmitter {
   };
 
   onMessage = (message: Buffer, host: Host) => {
+    this.logger.info(`Received a message from ${host.address}:${host.port} to broadcast message`);
     // Broadlink device has responded
     const macAddress = Buffer.alloc(6, 0);
 
@@ -209,12 +215,12 @@ export class Broadlink extends EventEmitter {
     const device = this.devices[macAddress];
     if (device) {
       // Authenticate the device and let others know when it's ready.
-      device.on("deviceReady", () => {
-        this.emit("deviceReady", device);
-      });
-
       device.authenticate();
     }
 
+  };
+
+  getDevices = () => {
+    return this.devices;
   };
 }
