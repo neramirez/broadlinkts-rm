@@ -6,7 +6,7 @@ import { payloadHandlers } from "../types/payload.handler";
 import { PacketHandler } from "../packet.handler";
 import { SocketHandler } from "../socket.handler";
 
-export class Device {
+export class BroadLinkDevice {
   protected request_header: Buffer;
   protected macAddress: Buffer;
   protected deviceType: number;

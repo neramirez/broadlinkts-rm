@@ -13,10 +13,10 @@ import {
 } from "./device.types";
 import { logger } from "./logger";
 import { RFDevice } from "./device/rfdevice";
-import { Device } from "./device/device";
+import { BroadLinkDevice } from "./device/broadLinkDevice";
 
 export class Broadlink extends EventEmitter {
-  public devices: NodeJS.Dict<Device>;
+  public devices: NodeJS.Dict<BroadLinkDevice>;
   private sockets: dgram.Socket[];
   private logger: Logger;
 
@@ -28,7 +28,7 @@ export class Broadlink extends EventEmitter {
     this.logger = logger;
   }
 
-  discover = async (): Promise<NodeJS.Dict<Device>> => {
+  discover = async (): Promise<NodeJS.Dict<BroadLinkDevice>> => {
     // Close existing sockets
     this.sockets.forEach((socket) => {
       socket.close();
@@ -209,7 +209,7 @@ export class Broadlink extends EventEmitter {
       this.devices[macAddress] = new RFDevice(host, macAddressBuffer, deviceType);
     } else {
       // The Broadlink device is something we can use.
-      this.devices[macAddress] = new Device(host, macAddressBuffer, deviceType);
+      this.devices[macAddress] = new BroadLinkDevice(host, macAddressBuffer, deviceType);
     }
 
     const device = this.devices[macAddress];
