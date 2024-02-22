@@ -12,7 +12,7 @@ import {
   unsupportedDeviceTypes
 } from "./device.types";
 import { logger } from "./logger";
-import { RFDevice } from "./device/rfdevice";
+import { BroadLinkDeviceRF } from "./device/broadLinkDeviceRF";
 import { BroadLinkDevice } from "./device/broadLinkDevice";
 
 export class Broadlink extends EventEmitter {
@@ -206,7 +206,7 @@ export class Broadlink extends EventEmitter {
     const isRFSupported = rmPlusDeviceTypes[(deviceType)] || rm4PlusDeviceTypes[(deviceType)];
     if (isRFSupported) {
       this.logger.info(`Adding RF Support to device ${macAddress.toString()} with type ${deviceType}`);
-      this.devices[macAddress] = new RFDevice(host, macAddressBuffer, deviceType);
+      this.devices[macAddress] = new BroadLinkDeviceRF(host, macAddressBuffer, deviceType);
     } else {
       // The Broadlink device is something we can use.
       this.devices[macAddress] = new BroadLinkDevice(host, macAddressBuffer, deviceType);

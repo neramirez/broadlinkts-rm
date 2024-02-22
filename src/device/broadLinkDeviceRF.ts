@@ -1,7 +1,7 @@
 import { BroadLinkDevice } from "./broadLinkDevice";
 import { Host } from "../types/host";
 
-export class RFDevice extends BroadLinkDevice {
+export class BroadLinkDeviceRF extends BroadLinkDevice {
   constructor(host: Host, macAddress: Buffer, deviceType: number, port?: number) {
     super(host, macAddress, deviceType, port);
   }
