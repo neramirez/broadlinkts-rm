@@ -159,6 +159,18 @@ export class BroadLinkDevice {
     }
   }
 
+  public toJSON() {
+    return {
+      host: this.host,
+      macAddress: this.macAddress,
+      deviceType: this.deviceType,
+      requestCounter: this.requestCounter,
+      rm4Type: this.rm4Type,
+      isProcessing: this.isProcessing,
+      queue: this.queue
+    };
+  }
+
   protected dispatchCommandAndIncrementCounter(command: number, payload: Buffer) {
     const packet = this.packetHandler.createPacket(command, payload, this.macAddress, this.requestCounter, this.deviceType);
     const responsePromise = this.socketHandler.sendPacket(command, packet, this.requestCounter);

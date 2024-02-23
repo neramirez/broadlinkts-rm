@@ -17,7 +17,12 @@ export class SocketHandler {
   private request_header: Buffer;
   private code_sending_header: Buffer;
   private promises: {
-    [key: number]: { resolve: (value: Buffer) => void, reject: (reason: any) => void, timeout: NodeJS.Timeout }
+    [key: number]: {
+      startTime: bigint,
+      resolve: (value: Buffer) => void,
+      reject: (reason: any) => void,
+      timeout: NodeJS.Timeout
+    }
   };
 
 
@@ -54,9 +59,17 @@ export class SocketHandler {
     decipher.setAutoPadding(false);
 
     let payload = decipher.update(encryptedPayload);
-    const { resolve, reject, timeout } = this.promises[requestId];
+    const { resolve, reject, timeout, startTime } = this.promises[requestId];
     clearTimeout(timeout);
     delete this.promises[requestId];
+
+    // Calculate the time difference
+    const endTime = process.hrtime.bigint();
+    const timeDiff = Number(endTime - startTime) / 1e6; // convert to milliseconds
+
+    this.logger.info(`Response received: ${requestId}, Time taken: ${timeDiff} ms`);
+
+
     const p2 = decipher.final();
     if (p2) payload = Buffer.concat([payload, p2]);
 
@@ -98,7 +111,9 @@ export class SocketHandler {
         reject(new Error(`Timeout: handleMessage for ${requestId} was not called within the specified time.`));
         delete this.promises[requestId]; // remove the promise as it's no longer needed
       }, 5000); // 5000 milliseconds = 5 seconds
-      this.promises[requestId] = { resolve, reject, timeout };
+      const startTime = process.hrtime.bigint();
+
+      this.promises[requestId] = { startTime, resolve, reject, timeout };
 
       this.socket.send(packet, 0, packet.length, this.host.port, this.host.address, (err, _bytes) => {
         if (err) {
