@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { PacketHandler } from "./packet.handler";
 import { rm4DeviceTypes, rm4PlusDeviceTypes } from "./device.types";
 import { payloadHandlers } from "./types/payload.handler";
+import { QueueItem } from "./types/queueItem";
 
 export class SocketHandler {
   private logger: winston.Logger;
@@ -21,7 +22,8 @@ export class SocketHandler {
       startTime: bigint,
       resolve: (value: Buffer) => void,
       reject: (reason: any) => void,
-      timeout: NodeJS.Timeout
+      timeout: NodeJS.Timeout,
+      queueItem?: QueueItem
     }
   };
 
@@ -59,7 +61,7 @@ export class SocketHandler {
     decipher.setAutoPadding(false);
 
     let payload = decipher.update(encryptedPayload);
-    const { resolve, reject, timeout, startTime } = this.promises[requestId];
+    const { resolve, reject, timeout, startTime, queueItem } = this.promises[requestId];
     clearTimeout(timeout);
     delete this.promises[requestId];
 
@@ -73,7 +75,10 @@ export class SocketHandler {
     const p2 = decipher.final();
     if (p2) payload = Buffer.concat([payload, p2]);
 
-    if (!payload) reject("No Payload");
+    if (!payload) {
+      reject("No Payload");
+      queueItem?.promiseExecutor.reject("No Payload");
+    }
 
     this.logger.info(`Response received: ${requestId}`);
 
@@ -86,6 +91,7 @@ export class SocketHandler {
       payload.copy(id, 0, 0x00, 0x04);
       this.packetHandler.setId(id);
       resolve(payload);
+      queueItem?.promiseExecutor.resolve(payload);
       //this.emit("deviceReady");
     } else if (command == 0xee || command == 0xef) {
       const payloadHex = payload.toString("hex");
@@ -98,6 +104,7 @@ export class SocketHandler {
       }
       this.onPayloadReceived(err, payload);
       resolve(payload);
+      queueItem?.promiseExecutor.resolve(payload);
     } else if (command == 0x72) {
       this.logger.info("Command Acknowledged");
     } else {
@@ -105,7 +112,7 @@ export class SocketHandler {
     }
   };
 
-  sendPacket = async (command: number, packet: Buffer, requestId: number) => {
+  sendPacket = async (command: number, packet: Buffer, requestId: number, queueItem?: QueueItem) => {
     return await new Promise<Buffer>((resolve: (value: Buffer) => void, reject: (reason: any) => void) => {
       const timeout = setTimeout(() => {
         reject(new Error(`Timeout: handleMessage for ${requestId} was not called within the specified time.`));
@@ -113,7 +120,7 @@ export class SocketHandler {
       }, 5000); // 5000 milliseconds = 5 seconds
       const startTime = process.hrtime.bigint();
 
-      this.promises[requestId] = { startTime, resolve, reject, timeout };
+      this.promises[requestId] = { startTime, resolve, reject, timeout, queueItem };
 
       this.socket.send(packet, 0, packet.length, this.host.port, this.host.address, (err, _bytes) => {
         if (err) {

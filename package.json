@@ -1,6 +1,6 @@
 {
   "name": "neramirez-broadlink-ts",
-  "version": "0.1.5",
+  "version": "0.1.8",
   "description": "A TypeScript-enhanced Node.JS fork of broadlinkjs, designed for interacting with RM devices in homebridge-broadlink-rm. Now includes a feature for handling multiple requests to the same device, with a specific focus on supporting homebridge-broadlink-window-covering.",
   "main": "dist/index.js",
   "files": [

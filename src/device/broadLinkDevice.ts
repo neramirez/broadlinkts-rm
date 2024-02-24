@@ -5,6 +5,7 @@ import { rm4DeviceTypes, rm4PlusDeviceTypes } from "../device.types";
 import { payloadHandlers } from "../types/payload.handler";
 import { PacketHandler } from "../packet.handler";
 import { SocketHandler } from "../socket.handler";
+import { QueueItem } from "../types/queueItem";
 
 export class BroadLinkDevice {
   protected request_header: Buffer;
@@ -25,7 +26,7 @@ export class BroadLinkDevice {
     }
   };
   private isProcessing: boolean;
-  private queue: Buffer[];
+  private queue: QueueItem[];
 
   constructor(host: Host, macAddress: Buffer, deviceType: number, port?: number) {
     this.isProcessing = false;
@@ -35,7 +36,7 @@ export class BroadLinkDevice {
     this.host = host;
     this.macAddress = macAddress;
     this.deviceType = deviceType;
-    this.requestCounter = 4444;
+    this.requestCounter = 0;
 
     this.rm4Type = (rm4DeviceTypes[(deviceType)] || rm4PlusDeviceTypes[deviceType]);
     this.request_header = this.rm4Type ? Buffer.from([0x04, 0x00]) : Buffer.from([]);
@@ -102,10 +103,10 @@ export class BroadLinkDevice {
 
   // Externally Accessed Methods
 
-  sendData = (data: Buffer): Promise<Buffer> => {
+  sendData = (queueItem: QueueItem): Promise<Buffer> => {
     let packet = Buffer.from([0x02, 0x00, 0x00, 0x00]);
-    packet = Buffer.concat([this.code_sending_header, packet, data]);
-    return this.dispatchCommandAndIncrementCounter(0x6a, packet);
+    packet = Buffer.concat([this.code_sending_header, packet, queueItem.buffer]);
+    return this.dispatchCommandAndIncrementCounter(0x6a, packet, queueItem);
 
   };
 
@@ -135,10 +136,14 @@ export class BroadLinkDevice {
   };
 
   enqueue(command: Buffer) {
-    this.queue.push(command);
+
+    const p = new Promise((resolve, reject) => {
+      this.queue.push({ buffer: command, promiseExecutor: { resolve, reject } });
+    });
     if (!this.isProcessing) {
       this.processQueue();
     }
+    return p;
   }
 
   async processQueue() {
@@ -171,9 +176,9 @@ export class BroadLinkDevice {
     };
   }
 
-  protected dispatchCommandAndIncrementCounter(command: number, payload: Buffer) {
+  protected dispatchCommandAndIncrementCounter(command: number, payload: Buffer, queueItem?: QueueItem) {
     const packet = this.packetHandler.createPacket(command, payload, this.macAddress, this.requestCounter, this.deviceType);
-    const responsePromise = this.socketHandler.sendPacket(command, packet, this.requestCounter);
+    const responsePromise = this.socketHandler.sendPacket(command, packet, this.requestCounter, queueItem);
     this.requestCounter++;
     return responsePromise;
   }
