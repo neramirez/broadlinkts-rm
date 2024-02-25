@@ -1,7 +1,6 @@
 import EventEmitter from "events";
 import dgram, { Socket } from "dgram";
 import os, { NetworkInterfaceInfo } from "os";
-import { Logger } from "winston";
 import { Host } from "./types/host";
 import assert from "assert";
 import {
@@ -11,7 +10,7 @@ import {
   rmPlusDeviceTypes,
   unsupportedDeviceTypes
 } from "./device.types";
-import { logger } from "./logger";
+import { Logger } from "./logger";
 import { BroadLinkDeviceRF } from "./device/broadLinkDeviceRF";
 import { BroadLinkDevice } from "./device/broadLinkDevice";
 
@@ -20,7 +19,7 @@ export class Broadlink extends EventEmitter {
   private sockets: dgram.Socket[];
   private logger: Logger;
 
-  constructor() {
+  constructor(logger: Logger) {
     super();
 
     this.devices = {};
@@ -206,10 +205,10 @@ export class Broadlink extends EventEmitter {
     const isRFSupported = rmPlusDeviceTypes[(deviceType)] || rm4PlusDeviceTypes[(deviceType)];
     if (isRFSupported) {
       this.logger.info(`Adding RF Support to device ${macAddress.toString()} with type ${deviceType}`);
-      this.devices[macAddress] = new BroadLinkDeviceRF(host, macAddressBuffer, deviceType);
+      this.devices[macAddress] = new BroadLinkDeviceRF(host, macAddressBuffer, deviceType, this.logger);
     } else {
       // The Broadlink device is something we can use.
-      this.devices[macAddress] = new BroadLinkDevice(host, macAddressBuffer, deviceType);
+      this.devices[macAddress] = new BroadLinkDevice(host, macAddressBuffer, deviceType, this.logger);
     }
 
     const device = this.devices[macAddress];

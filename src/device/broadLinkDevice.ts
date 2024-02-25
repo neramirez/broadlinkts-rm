@@ -1,5 +1,4 @@
-import { logger } from "../logger";
-import winston from "winston";
+import { Logger } from "../logger";
 import { Host } from "../types/host";
 import { rm4DeviceTypes, rm4PlusDeviceTypes } from "../device.types";
 import { payloadHandlers } from "../types/payload.handler";
@@ -14,7 +13,7 @@ export class BroadLinkDevice {
   protected packetHandler: PacketHandler;
   protected socketHandler: SocketHandler;
   protected requestCounter: number;
-  private logger: winston.Logger;
+  private logger: Logger;
   private host: Host;
 
   private rm4Type: string;
@@ -28,7 +27,7 @@ export class BroadLinkDevice {
   private isProcessing: boolean;
   private queue: QueueItem[];
 
-  constructor(host: Host, macAddress: Buffer, deviceType: number, port?: number) {
+  constructor(host: Host, macAddress: Buffer, deviceType: number, logger: Logger) {
     this.isProcessing = false;
     this.queue = [];
     this.logger = logger;

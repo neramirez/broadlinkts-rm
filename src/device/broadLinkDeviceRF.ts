@@ -1,9 +1,10 @@
 import { BroadLinkDevice } from "./broadLinkDevice";
 import { Host } from "../types/host";
+import { Logger } from "../logger";
 
 export class BroadLinkDeviceRF extends BroadLinkDevice {
-  constructor(host: Host, macAddress: Buffer, deviceType: number, port?: number) {
-    super(host, macAddress, deviceType, port);
+  constructor(host: Host, macAddress: Buffer, deviceType: number, logger: Logger) {
+    super(host, macAddress, deviceType, logger);
   }
 
   enterRFSweep = () => {

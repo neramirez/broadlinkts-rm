@@ -1,14 +1,14 @@
 import dgram from "dgram";
-import winston from "winston";
 import { Host } from "./types/host";
 import crypto from "crypto";
 import { PacketHandler } from "./packet.handler";
 import { rm4DeviceTypes, rm4PlusDeviceTypes } from "./device.types";
 import { payloadHandlers } from "./types/payload.handler";
 import { QueueItem } from "./types/queueItem";
+import { Logger } from "./logger";
 
 export class SocketHandler {
-  private logger: winston.Logger;
+  private logger: Logger;
   private host: Host;
   private socket: dgram.Socket;
   private macAddress: Buffer;
@@ -28,7 +28,7 @@ export class SocketHandler {
   };
 
 
-  constructor(logger: winston.Logger, host: Host, macAddress: Buffer, deviceType: number, packetHandler: PacketHandler) {
+  constructor(logger: Logger, host: Host, macAddress: Buffer, deviceType: number, packetHandler: PacketHandler) {
     this.logger = logger;
     this.host = host;
     this.socket = this.setupSocket();

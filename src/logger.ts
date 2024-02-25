@@ -1,7 +1,17 @@
 // logger.ts
 import winston from "winston";
 
-export const logger = winston.createLogger({
+export interface Logger {
+  info(message: string, ...parameters: any[]): void;
+
+  warn(message: string, ...parameters: any[]): void;
+
+  error(message: string, ...parameters: any[]): void;
+
+  debug(message: string, ...parameters: any[]): void;
+}
+
+export const winstonLogger = winston.createLogger({
   level: "info",
   format: winston.format.json(),
   transports: [
@@ -11,7 +21,25 @@ export const logger = winston.createLogger({
 });
 
 if (process.env.NODE_ENV !== "production") {
-  logger.add(new winston.transports.Console({
+  winstonLogger.add(new winston.transports.Console({
     format: winston.format.simple()
   }));
+}
+
+export class WinstonLogger implements Logger {
+  info(message: string, ...parameters: any[]): void {
+    winstonLogger.info(message, ...parameters);
+  }
+
+  warn(message: string, ...parameters: any[]): void {
+    winstonLogger.warn(message, ...parameters);
+  }
+
+  error(message: string, ...parameters: any[]): void {
+    winstonLogger.error(message, ...parameters);
+  }
+
+  debug(message: string, ...parameters: any[]): void {
+    winstonLogger.debug(message, ...parameters);
+  }
 }
